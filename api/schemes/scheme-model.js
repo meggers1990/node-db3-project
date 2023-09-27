@@ -1,4 +1,14 @@
-function find() { // EXERCISE A
+const db = require("../../data/db-config");
+
+async function find() {
+  // EXERCISE A
+  const rows = await db("schemes as sc")
+    .select("sc.*")
+    .count("st.step_id as number_of_steps")
+    .leftJoin("steps as st", "sc.scheme_id", "=", "st.scheme_id")
+    .orderBy("sc.scheme_id")
+    .groupBy("sc.scheme_id");
+
   /*
     1A- Study the SQL query below running it in SQLite Studio against `data/schemes.db3`.
     What happens if we change from a LEFT join to an INNER join?
@@ -15,9 +25,31 @@ function find() { // EXERCISE A
     2A- When you have a grasp on the query go ahead and build it in Knex.
     Return from this function the resulting dataset.
   */
+  return rows;
 }
 
-function findById(scheme_id) { // EXERCISE B
+async function findById(scheme_id) {
+  const rows = await db("schemes as sc")
+    .select("sc.scheme_name", "st.*")
+    .leftJoin("steps as st", "sc.scheme_id", "st.scheme_id")
+    .where("sc.scheme_id", scheme_id)
+    .orderBy("st.step_number");
+  const newObj = {
+    scheme_id: rows[0].scheme_id,
+    scheme_name: rows[0].scheme_name,
+    steps: [],
+  };
+  rows.forEach((row) => {
+    if (row.step_id) {
+      newObj.steps.push({
+        step_id: row.step_id,
+        step_number: row.step_number,
+        instructions: row.instructions,
+      });
+    }
+  });
+  return newObj;
+  // EXERCISE B
   /*
     1B- Study the SQL query below running it in SQLite Studio against `data/schemes.db3`:
 
@@ -85,8 +117,26 @@ function findById(scheme_id) { // EXERCISE B
   */
 }
 
-function findSteps(scheme_id) { // EXERCISE C
+async function findSteps(scheme_id) {
+  // EXERCISE C
+  const rows = await db("schemes as sc")
+    .select("sc.scheme_name", "st.step_number", "st.instructions", "st.step_id")
+    .join("steps as st", "sc.scheme_id", "st.scheme_id")
+    .where("st.scheme_id", scheme_id)
+    .orderBy("st.step_number");
+
+  return rows;
+
   /*
+
+select step_id,step_number,instructions,scheme_name
+from schemes as sc
+Join steps as st
+
+on sc.scheme_id = st.scheme_id
+where st.scheme_id = 1
+order by st.step_number
+
     1C- Build a query in Knex that returns the following data.
     The steps should be sorted by step_number, and the array
     should be empty if there are no steps for the scheme:
@@ -108,18 +158,31 @@ function findSteps(scheme_id) { // EXERCISE C
   */
 }
 
-function add(scheme) { // EXERCISE D
+async function add(scheme) {
+  // EXERCISE D
   /*
     1D- This function creates a new scheme and resolves to _the newly created scheme_.
   */
+  const [scheme_id] = await db("schemes").insert(scheme);
+
+  return db("schemes").where("scheme_id", scheme_id).first();
 }
 
-function addStep(scheme_id, step) { // EXERCISE E
+function addStep(scheme_id, step) {
+  // EXERCISE E
   /*
     1E- This function adds a step to the scheme with the given `scheme_id`
     and resolves to _all the steps_ belonging to the given `scheme_id`,
     including the newly created one.
   */
+  return db("steps")
+    .insert({
+      ...step,
+      scheme_id,
+    })
+    .then(() => {
+      return db("steps").where("scheme_id", scheme_id).orderBy("step_number");
+    });
 }
 
 module.exports = {
@@ -128,4 +191,4 @@ module.exports = {
   findSteps,
   add,
   addStep,
-}
+};
